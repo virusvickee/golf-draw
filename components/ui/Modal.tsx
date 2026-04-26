@@ -11,9 +11,10 @@ interface ModalProps {
   title?: string;
   children: React.ReactNode;
   className?: string;
+  showCloseButton?: boolean;
 }
 
-export function Modal({ isOpen, onClose, title, children, className }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, className, showCloseButton = true }: ModalProps) {
   // Lock body scroll when open
   React.useEffect(() => {
     if (isOpen) {
@@ -58,15 +59,17 @@ export function Modal({ isOpen, onClose, title, children, className }: ModalProp
                 className
               )}
             >
-              {(title || onClose) && (
+              {(title || showCloseButton) && (
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
                   {title && <h2 className="text-lg font-semibold text-slate-100">{title}</h2>}
-                  <button
-                    onClick={onClose}
-                    className="p-1 rounded-md text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
+                  {showCloseButton && (
+                    <button
+                      onClick={onClose}
+                      className="p-1 rounded-md text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  )}
                 </div>
               )}
               <div className="p-6">{children}</div>

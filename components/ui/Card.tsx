@@ -19,9 +19,9 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
           hoverEffect && "hover:border-slate-700 hover:shadow-2xl hover:shadow-emerald-500/5 transition-all",
           className
         )}
-        {...props}
+        {...(props as any)}
       >
-        {children}
+        {children as React.ReactNode}
       </motion.div>
     );
   }

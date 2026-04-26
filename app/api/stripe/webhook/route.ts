@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     switch (event.type) {
       case "customer.subscription.created":
       case "customer.subscription.updated": {
-        const subscription = event.data.object as any;
+        const subscription = event.data.object as Stripe.Subscription;
         const customerId = subscription.customer as string;
 
         // Find the user by stripe_customer_id
@@ -123,7 +123,7 @@ export async function POST(request: Request) {
       }
 
       case "customer.subscription.deleted": {
-        const subscription = event.data.object as any;
+        const subscription = event.data.object as Stripe.Subscription;
 
         const { error: subDelError } = await (supabase.from("subscriptions") as any)
           .update({ status: "cancelled" })

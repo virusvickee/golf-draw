@@ -72,7 +72,7 @@ export async function sendEmail({ to, template, data }: { to: string, template: 
     }
 
     return { success: true, result };
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("[Email Exception]", err);
     return { success: false, error: err };
   }

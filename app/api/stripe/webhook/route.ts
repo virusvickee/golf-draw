@@ -77,10 +77,10 @@ export async function POST(request: Request) {
           plan,
           status: subscription.status,
           current_period_start: new Date(
-            subscription.current_period_start * 1000
+            (subscription as any).current_period_start * 1000
           ).toISOString(),
           current_period_end: new Date(
-            subscription.current_period_end * 1000
+            (subscription as any).current_period_end * 1000
           ).toISOString(),
         }, { onConflict: "stripe_subscription_id" });
         if (subError) console.error("[Stripe Webhook] Failed to upsert subscription", subError);
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
                   data: {
                     plan: plan,
                     amount: plan === 'yearly' ? '£99.00 / year' : '£9.99 / month',
-                    nextRenewal: new Date(subscription.current_period_end * 1000).toLocaleDateString()
+                    nextRenewal: new Date((subscription as any).current_period_end * 1000).toLocaleDateString()
                   }
                 })
               });

@@ -9,7 +9,13 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 
-/** Events we care about */
+function toISOStringSafe(val: unknown): string | null {
+  if (typeof val === 'number') {
+    return new Date(val * 1000).toISOString();
+  }
+  return null;
+}
+
 const HANDLED_EVENTS: Stripe.Event.Type[] = [
   "customer.subscription.created",
   "customer.subscription.updated",
@@ -52,9 +58,9 @@ export async function POST(request: Request) {
       case "customer.subscription.created":
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
+        const sub = subscription as any;
         const customerId = subscription.customer as string;
 
-        // Find the user by stripe_customer_id
         const { data: user } = await (supabase.from("users") as any)
           .select("id")
           .eq("stripe_customer_id", customerId)
@@ -70,22 +76,19 @@ export async function POST(request: Request) {
             ? "yearly"
             : "monthly";
 
-        // Upsert subscription record
+        const periodStart = toISOStringSafe(sub.current_period_start);
+        const periodEnd = toISOStringSafe(sub.current_period_end);
+
         const { error: subError } = await (supabase.from("subscriptions") as any).upsert({
           user_id: user.id,
           stripe_subscription_id: subscription.id,
           plan,
           status: subscription.status,
-          current_period_start: new Date(
-            (subscription as any).current_period_start * 1000
-          ).toISOString(),
-          current_period_end: new Date(
-            (subscription as any).current_period_end * 1000
-          ).toISOString(),
+          current_period_start: periodStart,
+          current_period_end: periodEnd,
         }, { onConflict: "stripe_subscription_id" });
         if (subError) console.error("[Stripe Webhook] Failed to upsert subscription", subError);
 
-        // Sync status back to users table
         const dbStatus =
           subscription.status === "active" ? "active" : "inactive";
 
@@ -94,10 +97,9 @@ export async function POST(request: Request) {
           .eq("id", user.id);
         if (userError) console.error("[Stripe Webhook] Failed to sync user status", userError);
 
-        // Send email if it just became active
         if (subscription.status === "active") {
           const { data: userDetails } = await (supabase.from("users") as any).select("email").eq("id", user.id).single();
-          if (userDetails?.email) {
+          if (userDetails?.email && periodEnd) {
             try {
               const emailRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/email/send`, {
                 method: 'POST',
@@ -108,7 +110,7 @@ export async function POST(request: Request) {
                   data: {
                     plan: plan,
                     amount: plan === 'yearly' ? '£99.00 / year' : '£9.99 / month',
-                    nextRenewal: new Date((subscription as any).current_period_end * 1000).toLocaleDateString()
+                    nextRenewal: new Date(periodEnd).toLocaleDateString()
                   }
                 })
               });

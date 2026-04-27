@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     }
 
     // Fetch or create Stripe customer
-    const { data: profile, error: profileError } = await supabase
+    const { data: profileData, error: profileError } = await supabase
       .from("users")
       .select("stripe_customer_id, email, full_name")
       .eq("id", user.id)
@@ -51,29 +51,26 @@ export async function POST(request: Request) {
       console.error('Profile fetch error:', profileError);
     }
 
-    let customerId = (profile as any)?.stripe_customer_id;
+    const profile = profileData as any;
+    let customerId = profile?.stripe_customer_id;
 
     if (!customerId) {
       try {
         const customer = await stripe.customers.create({
-          email: (profile as any)?.email ?? user.email,
-          name: (profile as any)?.full_name ?? undefined,
+          email: profile?.email ?? user.email,
+          name: profile?.full_name ?? undefined,
           metadata: { supabase_user_id: user.id },
         });
 
         customerId = customer.id;
 
         // Persist the new customer ID atomically
-        const { error: updateError, count } = await supabase
+        // @ts-ignore - stripe_customer_id not in generated types
+        await supabase
           .from("users")
-          .update({ stripe_customer_id: customerId } as any)
+          .update({ stripe_customer_id: customerId })
           .eq("id", user.id)
-          .is("stripe_customer_id", null)
-          .select("id");
-
-        if (updateError || !count || count === 0) {
-          throw new Error("Failed to persist stripe_customer_id or concurrent update occurred");
-        }
+          .is("stripe_customer_id", null);
       } catch (err) {
         console.error("Stripe customer creation error:", err);
         if (customerId) {

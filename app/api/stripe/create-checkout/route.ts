@@ -51,13 +51,13 @@ export async function POST(request: Request) {
       console.error('Profile fetch error:', profileError);
     }
 
-    let customerId = profile?.stripe_customer_id;
+    let customerId = (profile as any)?.stripe_customer_id;
 
     if (!customerId) {
       try {
         const customer = await stripe.customers.create({
-          email: profile?.email ?? user.email,
-          name: profile?.full_name ?? undefined,
+          email: (profile as any)?.email ?? user.email,
+          name: (profile as any)?.full_name ?? undefined,
           metadata: { supabase_user_id: user.id },
         });
 
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
         // Persist the new customer ID atomically
         const { error: updateError, count } = await supabase
           .from("users")
-          .update({ stripe_customer_id: customerId })
+          .update({ stripe_customer_id: customerId } as any)
           .eq("id", user.id)
           .is("stripe_customer_id", null)
           .select("id");

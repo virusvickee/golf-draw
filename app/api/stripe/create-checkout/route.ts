@@ -65,9 +65,8 @@ export async function POST(request: Request) {
         customerId = customer.id;
 
         // Persist the new customer ID atomically
-        // @ts-expect-error - stripe_customer_id not in generated types
-        await supabase
-          .from("users")
+        await (supabase
+          .from("users") as any)
           .update({ stripe_customer_id: customerId })
           .eq("id", user.id);
       } catch (err) {

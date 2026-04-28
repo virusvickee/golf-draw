@@ -26,8 +26,8 @@ export default function AdminWinnersPage() {
 
   async function fetchWinners() {
     const supabase = createClient();
-    const { data } = await supabase
-      .from("winners")
+    const { data } = await (supabase
+      .from("winners") as any)
       .select(`
         *,
         users(email, full_name),
@@ -49,8 +49,8 @@ export default function AdminWinnersPage() {
 
   async function handleVerificationAction(winnerId: string, action: 'approved' | 'rejected') {
     const supabase = createClient();
-    const { error } = await supabase
-      .from("winners")
+    const { error } = await (supabase
+      .from("winners") as any)
       .update({ verification_status: action })
       .eq("id", winnerId);
 
@@ -65,8 +65,8 @@ export default function AdminWinnersPage() {
 
   async function handleMarkPaid(winnerId: string) {
     const supabase = createClient();
-    const { error } = await supabase
-      .from("winners")
+    const { error } = await (supabase
+      .from("winners") as any)
       .update({ payment_status: 'paid' })
       .eq("id", winnerId);
 

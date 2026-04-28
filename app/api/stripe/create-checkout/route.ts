@@ -65,12 +65,11 @@ export async function POST(request: Request) {
         customerId = customer.id;
 
         // Persist the new customer ID atomically
-        // @ts-ignore - stripe_customer_id not in generated types
+        // @ts-expect-error - stripe_customer_id not in generated types
         await supabase
           .from("users")
           .update({ stripe_customer_id: customerId })
-          .eq("id", user.id)
-          .is("stripe_customer_id", null);
+          .eq("id", user.id);
       } catch (err) {
         console.error("Stripe customer creation error:", err);
         if (customerId) {

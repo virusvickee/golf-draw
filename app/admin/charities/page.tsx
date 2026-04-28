@@ -1,128 +1,264 @@
 "use client";
 
-import * as React from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
+import { Plus, Edit, Trash2, Star } from "lucide-react";
 import { toast } from "sonner";
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 export default function AdminCharitiesPage() {
-  const [charities, setCharities] = React.useState<any[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  
-  // Modal state
-  const [isModalOpen, setIsModalOpen] = React.useState(false);
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [formData, setFormData] = React.useState({ name: "", description: "", is_featured: false, is_active: true });
+  const [charities, setCharities] = useState<any[]>([]);
+  const [showModal, setShowModal] = useState(false);
+  const [editingCharity, setEditingCharity] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    image_url: "",
+    is_featured: false,
+    is_active: true,
+  });
 
-  const fetchCharities = async () => {
-    setLoading(true);
-    try {
-      const supabase = createClient();
-      const { data, error } = await supabase.from("charities").select("*").order("name");
-      if (error) throw error;
-      if (data) setCharities(data);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to load charities");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  React.useEffect(() => {
+  useEffect(() => {
     fetchCharities();
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
+  async function fetchCharities() {
     const supabase = createClient();
-    const { error } = await (supabase.from("charities") as any).insert([formData]);
-    setIsSubmitting(false);
-    
-    if (error) {
-      toast.error(error.message);
+    const { data } = await supabase
+      .from("charities")
+      .select("*")
+      .order("name");
+
+    setCharities(data || []);
+    setLoading(false);
+  }
+
+  function openCreateModal() {
+    setEditingCharity(null);
+    setFormData({
+      name: "",
+      description: "",
+      image_url: "",
+      is_featured: false,
+      is_active: true,
+    });
+    setShowModal(true);
+  }
+
+  function openEditModal(charity: any) {
+    setEditingCharity(charity);
+    setFormData({
+      name: charity.name,
+      description: charity.description || "",
+      image_url: charity.image_url || "",
+      is_featured: charity.is_featured || false,
+      is_active: charity.is_active !== false,
+    });
+    setShowModal(true);
+  }
+
+  async function handleSubmit() {
+    const supabase = createClient();
+
+    if (editingCharity) {
+      const { error } = await (supabase
+        .from("charities") as any)
+        .update({
+          name: formData.name,
+          description: formData.description,
+          image_url: formData.image_url,
+          is_featured: formData.is_featured,
+          is_active: formData.is_active,
+        })
+        .eq("id", editingCharity.id);
+
+      if (error) {
+        toast.error("Failed to update charity");
+        return;
+      }
+      toast.success("Charity updated successfully");
     } else {
-      toast.success("Charity added!");
-      setFormData({ name: "", description: "", is_featured: false, is_active: true });
-      setIsModalOpen(false);
-      fetchCharities();
+      const { error } = await (supabase
+        .from("charities") as any)
+        .insert({
+          name: formData.name,
+          description: formData.description,
+          image_url: formData.image_url,
+          is_featured: formData.is_featured,
+          is_active: formData.is_active,
+        });
+
+      if (error) {
+        toast.error("Failed to create charity");
+        return;
+      }
+      toast.success("Charity created successfully");
     }
-  };
+
+    setShowModal(false);
+    fetchCharities();
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Are you sure you want to delete this charity?")) {
+      return;
+    }
+
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("charities")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      toast.error("Failed to delete charity");
+      return;
+    }
+
+    toast.success("Charity deleted successfully");
+    fetchCharities();
+  }
+
+  if (loading) {
+    return <div className="text-slate-400">Loading charities...</div>;
+  }
 
   return (
     <div className="space-y-6">
-      <PageHeader 
-        title="Charities" 
-        description="Manage the charities available for user contributions." 
-        action={<Button onClick={() => setIsModalOpen(true)}>Add Charity</Button>}
-      />
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-white mb-2">Charity Management</h1>
+          <p className="text-slate-400">Manage platform charities</p>
+        </div>
+        <Button onClick={openCreateModal} className="flex items-center gap-2">
+          <Plus size={20} />
+          Add Charity
+        </Button>
+      </div>
 
-      <Card className="overflow-x-auto">
-        {loading ? <LoadingSpinner variant="card" /> : (
-          <table className="w-full text-sm text-left">
-            <thead className="text-xs text-slate-400 uppercase bg-slate-900/50 border-b border-slate-800">
-              <tr>
-                <th className="px-6 py-4 font-medium">Name</th>
-                <th className="px-6 py-4 font-medium">Description</th>
-                <th className="px-6 py-4 font-medium">Status</th>
-                <th className="px-6 py-4 font-medium">Featured</th>
+      {/* Charities Table */}
+      <Card className="bg-slate-800 border-slate-700 p-6">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-slate-700">
+                <th className="text-left py-3 text-slate-400 font-medium">Name</th>
+                <th className="text-left py-3 text-slate-400 font-medium">Description</th>
+                <th className="text-left py-3 text-slate-400 font-medium">Featured</th>
+                <th className="text-left py-3 text-slate-400 font-medium">Active</th>
+                <th className="text-left py-3 text-slate-400 font-medium">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/50">
-              {charities.map((c) => (
-                <tr key={c.id} className="hover:bg-slate-800/30 transition-colors">
-                  <td className="px-6 py-4 font-medium text-white">{c.name}</td>
-                  <td className="px-6 py-4 text-slate-400 max-w-xs truncate">{c.description}</td>
-                  <td className="px-6 py-4">
-                    <Badge variant={c.is_active ? "success" : "danger"}>{c.is_active ? "Active" : "Inactive"}</Badge>
+            <tbody>
+              {charities.map((charity) => (
+                <tr key={charity.id} className="border-b border-slate-700 last:border-0">
+                  <td className="py-4">
+                    <div className="flex items-center gap-3">
+                      {charity.image_url && (
+                        <img src={charity.image_url} alt={charity.name} className="w-10 h-10 rounded-full object-cover" />
+                      )}
+                      <span className="text-white font-medium">{charity.name}</span>
+                    </div>
                   </td>
-                  <td className="px-6 py-4">
-                    {c.is_featured && <Badge variant="warning">Featured</Badge>}
+                  <td className="py-4 text-slate-300 max-w-md truncate">
+                    {charity.description || 'N/A'}
+                  </td>
+                  <td className="py-4">
+                    {charity.is_featured && (
+                      <Star size={18} className="text-amber-400 fill-amber-400" />
+                    )}
+                  </td>
+                  <td className="py-4">
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      charity.is_active !== false
+                        ? 'bg-emerald-500/10 text-emerald-400' 
+                        : 'bg-slate-700 text-slate-400'
+                    }`}>
+                      {charity.is_active !== false ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="py-4">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => openEditModal(charity)}
+                        className="p-2 hover:bg-slate-700 rounded text-slate-400 hover:text-white"
+                        title="Edit"
+                      >
+                        <Edit size={18} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(charity.id)}
+                        className="p-2 hover:bg-slate-700 rounded text-red-400 hover:text-red-300"
+                        title="Delete"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
-              {charities.length === 0 && (
-                <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-400">No charities found.</td></tr>
-              )}
             </tbody>
           </table>
-        )}
+        </div>
       </Card>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add Charity">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input 
-            label="Name" 
-            required 
-            value={formData.name} 
-            onChange={e => setFormData({...formData, name: e.target.value})} 
+      {/* Create/Edit Modal */}
+      <Modal 
+        isOpen={showModal} 
+        onClose={() => setShowModal(false)} 
+        title={editingCharity ? "Edit Charity" : "Add Charity"}
+      >
+        <div className="space-y-4">
+          <Input
+            label="Name"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            placeholder="Charity name"
           />
-          <div className="flex flex-col gap-1.5 w-full">
-            <label className="text-sm font-medium text-slate-300">Description</label>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Description</label>
             <textarea
-              required
-              className="flex min-h-[100px] w-full rounded-lg bg-slate-800/50 border border-slate-700 px-4 py-2 text-sm text-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500"
               value={formData.description}
-              onChange={e => setFormData({...formData, description: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Charity description"
+              rows={3}
+              className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <input 
-              type="checkbox" 
-              id="is_featured" 
-              checked={formData.is_featured} 
-              onChange={e => setFormData({...formData, is_featured: e.target.checked})} 
-            />
-            <label htmlFor="is_featured" className="text-sm text-slate-300">Feature this charity on homepage</label>
+          <Input
+            label="Image URL"
+            value={formData.image_url}
+            onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+            placeholder="https://..."
+          />
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 text-slate-300">
+              <input
+                type="checkbox"
+                checked={formData.is_featured}
+                onChange={(e) => setFormData({ ...formData, is_featured: e.target.checked })}
+                className="w-4 h-4"
+              />
+              Featured
+            </label>
+            <label className="flex items-center gap-2 text-slate-300">
+              <input
+                type="checkbox"
+                checked={formData.is_active}
+                onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                className="w-4 h-4"
+              />
+              Active
+            </label>
           </div>
-          <Button type="submit" className="w-full" isLoading={isSubmitting}>Save Charity</Button>
-        </form>
+          <Button onClick={handleSubmit} className="w-full">
+            {editingCharity ? "Update Charity" : "Create Charity"}
+          </Button>
+        </div>
       </Modal>
     </div>
   );

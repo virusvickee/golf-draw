@@ -23,7 +23,7 @@ export default function LoginPage() {
 
     try {
       const supabase = createClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -33,8 +33,21 @@ export default function LoginPage() {
         return;
       }
 
+      // Check user role to determine redirect
+      const { data: userData } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', data.user.id)
+        .single();
+
       toast.success("Signed in successfully!");
-      router.push("/dashboard");
+      
+      if ((userData as { role: string } | null)?.role === 'admin') {
+        router.push('/admin');
+      } else {
+        router.push('/dashboard');
+      }
+      
       router.refresh();
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred");

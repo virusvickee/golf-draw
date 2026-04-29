@@ -6,9 +6,9 @@
 
 ### Play Golf. Change Lives. Win Big.
 
-![Next.js](https://img.shields.io/badge/Next.js_14-black?style=for-the-badge&logo=next.js) ![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript) ![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase) ![Stripe](https://img.shields.io/badge/Stripe-626CD9?style=for-the-badge&logo=stripe) ![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel) ![TailwindCSS](https://img.shields.io/badge/Tailwind-38B2AC?style=for-the-badge&logo=tailwind-css) ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
+![Next.js](https://img.shields.io/badge/Next.js_16-black?style=for-the-badge&logo=next.js) ![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript) ![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase) ![Stripe](https://img.shields.io/badge/Stripe-626CD9?style=for-the-badge&logo=stripe) ![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel) ![TailwindCSS](https://img.shields.io/badge/Tailwind-38B2AC?style=for-the-badge&logo=tailwind-css) ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
-[![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-golf--draw--ruddy.vercel.app-emerald?style=for-the-badge)](https://golf-draw-ruddy.vercel.app)
+[![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-golf--draw--lake.vercel.app-emerald?style=for-the-badge)](https://golf-draw-lake.vercel.app)
 
 </div>
 
@@ -17,7 +17,6 @@
 ## 📑 Table of Contents
 
 - [✨ Features](#-features)
-- [🖥️ Screenshots](#️-screenshots)
 - [🏗️ Architecture & Tech Stack](#️-architecture--tech-stack)
 - [📁 Project Structure](#-project-structure)
 - [🗄️ Database Schema](#️-database-schema)
@@ -83,28 +82,18 @@
 
 ---
 
-## 🖥️ Screenshots
-
-> **Note:** Add actual screenshots here
-
-| Homepage | Dashboard | Admin Panel |
-|:---:|:---:|:---:|
-| ![Home](screenshots/home.png) | ![Dashboard](screenshots/dashboard.png) | ![Admin](screenshots/admin.png) |
-
----
-
 ## 🏗️ Architecture & Tech Stack
 
 | Layer | Technology | Purpose |
 |---|---|---|
-| **Frontend** | Next.js 14 | App Router, SSR, SSG |
+| **Frontend** | Next.js 16 (Turbopack) | App Router, SSR, SSG |
 | **Language** | TypeScript | Type safety |
 | **Styling** | Tailwind CSS | Utility-first CSS |
 | **Animation** | Framer Motion | Micro-interactions |
 | **Database** | Supabase (PostgreSQL) | Data storage |
 | **Auth** | Supabase Auth | User authentication |
 | **Storage** | Supabase Storage | File uploads |
-| **Payments** | Stripe | Subscriptions |
+| **Payments** | Stripe (API `2026-04-22.dahlia`) | Subscriptions |
 | **Email** | Resend + React Email | Notifications |
 | **Deployment** | Vercel | Hosting + CI/CD |
 | **Validation** | Zod | Schema validation |
@@ -345,6 +334,7 @@ For detailed deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md)
 - [x] Admin panel
 - [x] Email notifications
 - [x] Winner verification
+- [x] Production deployment on Vercel
 - [ ] Mobile app (React Native)
 - [ ] Corporate/team accounts
 - [ ] Multi-country support

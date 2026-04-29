@@ -40,8 +40,8 @@ export async function PATCH(req: NextRequest) {
     }
 
     // Update user's charity selection
-    const { data: updatedUser, error: updateError } = await supabase
-      .from("users")
+    const { data: updatedUser, error: updateError } = await (supabase
+      .from("users") as any)
       .update({
         charity_id,
         charity_contribution_percentage: contribution_percentage,
@@ -67,7 +67,7 @@ export async function PATCH(req: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid request data", details: error.errors },
+        { error: "Invalid request data", details: error.issues },
         { status: 400 }
       );
     }

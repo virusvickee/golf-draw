@@ -42,10 +42,11 @@ export default function DashboardCharityPage() {
       .eq("id", authUser.id)
       .single();
 
-    setUser(userData);
-    setCurrentCharity(userData?.charities);
-    setContributionPercentage(userData?.charity_contribution_percentage || 50);
-    setSelectedCharityId(userData?.charity_id || "");
+    const user = userData as any;
+    setUser(user);
+    setCurrentCharity(user?.charities);
+    setContributionPercentage(user?.charity_contribution_percentage || 50);
+    setSelectedCharityId(user?.charity_id || "");
 
     // Get all charities
     const { data: charitiesData } = await supabase

@@ -20,6 +20,7 @@ export default function AdminCharitiesPage() {
     image_url: "",
     is_featured: false,
     is_active: true,
+    events: [] as any[],
   });
 
   useEffect(() => {
@@ -45,6 +46,7 @@ export default function AdminCharitiesPage() {
       image_url: "",
       is_featured: false,
       is_active: true,
+      events: [],
     });
     setShowModal(true);
   }
@@ -57,6 +59,7 @@ export default function AdminCharitiesPage() {
       image_url: charity.image_url || "",
       is_featured: charity.is_featured || false,
       is_active: charity.is_active !== false,
+      events: charity.events || [],
     });
     setShowModal(true);
   }
@@ -239,7 +242,27 @@ export default function AdminCharitiesPage() {
               Active
             </label>
           </div>
-          <Button onClick={handleSubmit} className="w-full">
+          
+          <div className="pt-2">
+            <label className="block text-sm font-medium text-slate-300 mb-2">Upcoming Events (JSON)</label>
+            <textarea
+              value={JSON.stringify(formData.events || [], null, 2)}
+              onChange={(e) => {
+                try {
+                  const events = JSON.parse(e.target.value);
+                  setFormData({ ...formData, events });
+                } catch (err) {
+                  // Invalid JSON - we just don't update the state yet
+                }
+              }}
+              rows={6}
+              placeholder='[{"name": "Event Name", "date": "2026-06-15", "location": "London", "description": "Description", "link": "https://..."}]'
+              className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-emerald-400 font-mono text-sm"
+            />
+            <p className="text-[10px] text-slate-500 mt-1">Must be a valid JSON array of event objects.</p>
+          </div>
+
+          <Button onClick={handleSubmit} className="w-full" disabled={loading}>
             {editingCharity ? "Update Charity" : "Create Charity"}
           </Button>
         </div>

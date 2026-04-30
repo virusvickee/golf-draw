@@ -10,15 +10,47 @@ import { Badge } from "@/components/ui/Badge";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { Button } from "@/components/ui/Button";
 import { formatCurrency, formatDate } from "@/lib/helpers";
+import { createClient } from "@/lib/supabase/client";
 
 export default function DashboardOverviewPage() {
   const { profile, loading: userLoading } = useUser();
   const { scores, loading: scoresLoading } = useScores();
+  const [subscription, setSubscription] = React.useState<any>(null);
+  const [subLoading, setSubLoading] = React.useState(true);
 
-  if (userLoading || scoresLoading) return <LoadingSpinner variant="full-page" />;
+  React.useEffect(() => {
+    const fetchSubscription = async () => {
+      if (!profile?.id) return;
+      
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('subscriptions')
+        .select('current_period_end, plan, status')
+        .eq('user_id', profile.id)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      setSubscription(data);
+      setSubLoading(false);
+    };
+
+    if (profile?.id) {
+      fetchSubscription();
+    }
+  }, [profile?.id]);
+
+  if (userLoading || scoresLoading || subLoading) return <LoadingSpinner variant="full-page" />;
 
   const isActive = profile?.subscription_status === "active";
   const scoresCount = scores?.length || 0;
+
+  const renewalDate = subscription?.current_period_end
+    ? new Date(subscription.current_period_end).toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long', 
+        year: 'numeric'
+      })
+    : 'N/A';
 
   return (
     <div className="space-y-6">
@@ -39,6 +71,11 @@ export default function DashboardOverviewPage() {
                   {profile?.subscription_status || "Inactive"}
                 </Badge>
               </div>
+              {isActive && (
+                <p className="text-xs text-slate-500 mt-2">
+                  Renews on: <span className="text-slate-300 font-medium">{renewalDate}</span>
+                </p>
+              )}
             </div>
             {!isActive && (
               <div className="mt-4">

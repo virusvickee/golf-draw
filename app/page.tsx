@@ -1,6 +1,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Trophy, Heart, Activity, ArrowRight, ShieldCheck, Quote } from "lucide-react";
@@ -20,13 +21,17 @@ export const metadata = {
 
 export default async function HomePage() {
   const supabase = await createClient();
+  const adminClient = createAdminClient();
 
-  const { count: subscriberCount, error: usersError } = await supabase
+  // We use adminClient here because guests cannot count rows in the users table due to RLS
+  const { count: subscriberCount, error: usersError } = await adminClient
     .from("users")
     .select("*", { count: "exact", head: true })
     .eq("subscription_status", "active");
 
-  if (usersError) console.error("Users count fetch error:", usersError);
+  if (usersError) {
+    console.error("Users count fetch error:", usersError.message || usersError);
+  }
 
   const { data: charities, error: charitiesError } = await supabase
     .from("charities")

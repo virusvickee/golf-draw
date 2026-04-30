@@ -9,32 +9,79 @@ import { Button } from "@/components/ui/Button";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { formatCurrency } from "@/lib/helpers";
 import { format } from "date-fns";
-import { Trophy, UploadCloud } from "lucide-react";
+import { Trophy, UploadCloud, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 export default function UserWinningsPage() {
+  const router = useRouter();
   const [winnings, setWinnings] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [uploading, setUploading] = React.useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const fetchWinnings = async () => {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data } = await supabase
+      .from("winners")
+      .select(`
+        *,
+        draw_entries (draws (month))
+      `)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (data) setWinnings(data);
+    setLoading(false);
+  };
 
   React.useEffect(() => {
-    const fetchWinnings = async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data } = await supabase
-        .from("winners")
-        .select(`
-          *,
-          draw_entries (draws (month))
-        `)
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (data) setWinnings(data);
-      setLoading(false);
-    };
     fetchWinnings();
   }, []);
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, winnerId: string) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleUploadProof(file, winnerId);
+    }
+  };
+
+  const handleUploadProof = async (file: File, winnerId: string) => {
+    setUploading(winnerId);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("winnerId", winnerId);
+
+      const response = await fetch("/api/winners/upload-proof", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success("Proof uploaded successfully!");
+        fetchWinnings(); // Refresh data
+        router.refresh();
+      } else {
+        toast.error(data.error || "Upload failed. Try again.");
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error("Something went wrong");
+    } finally {
+      setUploading(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   if (loading) return <LoadingSpinner variant="full-page" />;
 
@@ -44,7 +91,7 @@ export default function UserWinningsPage() {
 
       <div className="grid gap-6">
         {winnings.map(win => (
-          <Card key={win.id} className="border-emerald-500/20 overflow-hidden">
+          <Card key={win.id} className="border-emerald-500/20 overflow-hidden relative">
             <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500" />
             <CardContent className="p-6">
               <div className="flex flex-col md:flex-row justify-between gap-6">
@@ -83,16 +130,49 @@ export default function UserWinningsPage() {
                 </div>
 
                 {win.verification_status === 'pending' && !win.proof_url && (
-                  <Button variant="secondary" size="sm">
-                    <UploadCloud className="w-4 h-4 mr-2" />
-                    Upload Scorecard Proof
-                  </Button>
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleFileChange(e, win.id)}
+                    />
+                    <Button 
+                      variant="secondary" 
+                      size="sm"
+                      onClick={handleUploadClick}
+                      disabled={!!uploading}
+                    >
+                      {uploading === win.id ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <UploadCloud className="w-4 h-4 mr-2" />
+                          Upload Scorecard Proof
+                        </>
+                      )}
+                    </Button>
+                  </>
                 )}
                 
                 {win.proof_url && (
-                  <p className="text-sm text-emerald-500 flex items-center gap-2">
-                    ✓ Proof submitted
-                  </p>
+                  <div className="flex flex-col items-end gap-1">
+                    <p className="text-sm text-emerald-500 flex items-center gap-2">
+                      ✓ Proof submitted
+                    </p>
+                    <a 
+                      href={win.proof_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs text-slate-400 hover:text-white underline"
+                    >
+                      View uploaded proof
+                    </a>
+                  </div>
                 )}
               </div>
             </CardContent>

@@ -5,8 +5,10 @@ import { createClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { Badge } from "@/components/ui/Badge";
 import { Eye, CheckCircle, XCircle, DollarSign } from "lucide-react";
 import { toast } from "sonner";
+import { format } from "date-fns";
 
 export default function AdminWinnersPage() {
   const [winners, setWinners] = useState<any[]>([]);
@@ -25,18 +27,24 @@ export default function AdminWinnersPage() {
   }, [filter, winners]);
 
   async function fetchWinners() {
-    const supabase = createClient();
-    const { data } = await (supabase
-      .from("winners") as any)
-      .select(`
-        *,
-        users(email, full_name),
-        draws(month)
-      `)
-      .order("created_at", { ascending: false });
-
-    setWinners(data || []);
-    setLoading(false);
+    setLoading(true);
+    try {
+      const response = await fetch('/api/admin/winners');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch');
+      }
+      
+      const data = await response.json();
+      console.log('Winners data:', data);
+      setWinners(data.winners || []);
+      
+    } catch (error) {
+      console.error('Fetch error:', error);
+      toast.error('Failed to load winners');
+    } finally {
+      setLoading(false);
+    }
   }
 
   function filterWinners() {
@@ -122,78 +130,90 @@ export default function AdminWinnersPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredWinners.map((winner) => (
-                <tr key={winner.id} className="border-b border-slate-700 last:border-0">
-                  <td className="py-4">
-                    <div className="text-white font-medium">{winner.users?.email || 'N/A'}</div>
-                    {winner.users?.full_name && (
-                      <div className="text-xs text-slate-400">{winner.users.full_name}</div>
-                    )}
-                  </td>
-                  <td className="py-4 text-slate-300">{winner.draws?.month || 'N/A'}</td>
-                  <td className="py-4 text-slate-300">{winner.match_count} numbers</td>
-                  <td className="py-4 text-emerald-400 font-semibold">£{winner.prize_amount}</td>
-                  <td className="py-4">
-                    {winner.proof_url ? (
-                      <button
-                        onClick={() => {
-                          setSelectedWinner(winner);
-                          setShowProofModal(true);
-                        }}
-                        className="text-emerald-400 hover:text-emerald-300 text-sm underline"
-                      >
-                        View Proof
-                      </button>
-                    ) : (
-                      <span className="text-slate-500 text-sm">No proof</span>
-                    )}
-                  </td>
-                  <td className="py-4">
-                    <span className={`text-xs px-2 py-1 rounded ${
-                      winner.verification_status === 'approved' 
-                        ? 'bg-emerald-500/10 text-emerald-400' 
-                        : winner.verification_status === 'pending'
-                        ? 'bg-amber-500/10 text-amber-400'
-                        : winner.verification_status === 'rejected'
-                        ? 'bg-red-500/10 text-red-400'
-                        : 'bg-blue-500/10 text-blue-400'
-                    }`}>
-                      {winner.payment_status === 'paid' ? 'Paid' : winner.verification_status}
-                    </span>
-                  </td>
-                  <td className="py-4">
-                    <div className="flex gap-2">
-                      {winner.verification_status === 'pending' && (
-                        <>
-                          <button
-                            onClick={() => handleVerificationAction(winner.id, 'approved')}
-                            className="p-2 hover:bg-slate-700 rounded text-emerald-400 hover:text-emerald-300"
-                            title="Approve"
-                          >
-                            <CheckCircle size={18} />
-                          </button>
-                          <button
-                            onClick={() => handleVerificationAction(winner.id, 'rejected')}
-                            className="p-2 hover:bg-slate-700 rounded text-red-400 hover:text-red-300"
-                            title="Reject"
-                          >
-                            <XCircle size={18} />
-                          </button>
-                        </>
-                      )}
-                      {winner.verification_status === 'approved' && winner.payment_status !== 'paid' && (
-                        <button
-                          onClick={() => handleMarkPaid(winner.id)}
-                          className="p-2 hover:bg-slate-700 rounded text-blue-400 hover:text-blue-300"
-                          title="Mark as Paid"
-                        >
-                          <DollarSign size={18} />
-                        </button>
-                      )}
-                    </div>
+              {filteredWinners.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-8 text-slate-400">
+                    No winners found
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredWinners.map((winner) => (
+                  <tr key={winner.id} className="border-b border-slate-700 last:border-0">
+                    <td className="py-4">
+                      <div className="text-white font-medium">{winner.user?.full_name || 'Unknown'}</div>
+                      <div className="text-xs text-slate-400">{winner.user?.email || 'N/A'}</div>
+                    </td>
+                    <td className="py-4 text-slate-300">
+                      {winner.draw?.month ? format(new Date(winner.draw.month), "MMMM yyyy") : "N/A"}
+                    </td>
+                    <td className="py-4 text-slate-300">
+                      <Badge variant="neutral" className="capitalize">
+                        {winner.match_type.replace('_', ' ')}
+                      </Badge>
+                    </td>
+                    <td className="py-4 text-emerald-400 font-semibold">£{winner.prize_amount}</td>
+                    <td className="py-4">
+                      {winner.proof_url ? (
+                        <button
+                          onClick={() => {
+                            setSelectedWinner(winner);
+                            setShowProofModal(true);
+                          }}
+                          className="text-emerald-400 hover:text-emerald-300 text-sm underline"
+                        >
+                          View Proof
+                        </button>
+                      ) : (
+                        <span className="text-slate-500 text-sm">Pending</span>
+                      )}
+                    </td>
+                    <td className="py-4">
+                      <div className="flex flex-col gap-1">
+                        <Badge variant={
+                          winner.verification_status === 'approved' ? 'success' :
+                          winner.verification_status === 'rejected' ? 'danger' : 'warning'
+                        }>
+                          {winner.verification_status}
+                        </Badge>
+                        <Badge variant={winner.payment_status === 'paid' ? 'success' : 'neutral'}>
+                          {winner.payment_status}
+                        </Badge>
+                      </div>
+                    </td>
+                    <td className="py-4">
+                      <div className="flex gap-2">
+                        {winner.verification_status === 'pending' && (
+                          <>
+                            <button
+                              onClick={() => handleVerificationAction(winner.id, 'approved')}
+                              className="p-2 hover:bg-slate-700 rounded text-emerald-400 hover:text-emerald-300"
+                              title="Approve"
+                            >
+                              <CheckCircle size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleVerificationAction(winner.id, 'rejected')}
+                              className="p-2 hover:bg-slate-700 rounded text-red-400 hover:text-red-300"
+                              title="Reject"
+                            >
+                              <XCircle size={18} />
+                            </button>
+                          </>
+                        )}
+                        {winner.verification_status === 'approved' && winner.payment_status !== 'paid' && (
+                          <button
+                            onClick={() => handleMarkPaid(winner.id)}
+                            className="p-2 hover:bg-slate-700 rounded text-blue-400 hover:text-blue-300"
+                            title="Mark as Paid"
+                          >
+                            <DollarSign size={18} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

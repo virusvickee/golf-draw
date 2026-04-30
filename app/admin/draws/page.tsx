@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -24,55 +23,80 @@ export default function AdminDrawsPage() {
   }, []);
 
   async function fetchDraws() {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("draws")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    setDraws(data || []);
-    setLoading(false);
+    try {
+      const res = await fetch("/api/admin/draws");
+      if (!res.ok) {
+        throw new Error("Failed to fetch draws");
+      }
+      const data = await res.json();
+      setDraws(data.draws || []);
+    } catch (err) {
+      toast.error("Failed to load draws");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleCreateDraw() {
-    const supabase = createClient();
-    
-    const { error } = await (supabase.from("draws") as any).insert({
-      month: formData.month,
-      draw_type: formData.draw_type,
-      status: "draft",
-      numbers: [],
-    });
+    try {
+      const res = await fetch("/api/admin/draws", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          month: formData.month,
+          drawType: formData.draw_type,
+        }),
+      });
 
-    if (error) {
-      toast.error("Failed to create draw");
-      return;
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to create draw");
+      }
+
+      toast.success("Draw created successfully");
+      setShowCreateModal(false);
+      setFormData({ month: "", draw_type: "random" });
+      fetchDraws();
+    } catch (err: any) {
+      toast.error(err.message);
     }
+  }
 
-    toast.success("Draw created successfully");
-    setShowCreateModal(false);
-    setFormData({ month: "", draw_type: "random" });
-    fetchDraws();
+  async function handleSimulateDraw(drawId: string) {
+    try {
+      const res = await fetch(`/api/admin/draws/${drawId}/simulate`, {
+        method: "POST",
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to simulate draw");
+      }
+
+      toast.success("Draw simulated successfully");
+      fetchDraws();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   }
 
   async function handlePublishDraw(drawId: string) {
-    if (!confirm("Are you sure you want to publish this draw? This cannot be undone.")) {
-      return;
+    try {
+      const res = await fetch(`/api/admin/draws/${drawId}/publish`, {
+        method: "POST",
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to publish draw");
+      }
+
+      toast.success("Draw published successfully");
+      fetchDraws();
+    } catch (err: any) {
+      toast.error(err.message);
     }
-
-    const supabase = createClient();
-    const { error } = await (supabase
-      .from("draws") as any)
-      .update({ status: "published" })
-      .eq("id", drawId);
-
-    if (error) {
-      toast.error("Failed to publish draw");
-      return;
-    }
-
-    toast.success("Draw published successfully");
-    fetchDraws();
   }
 
   if (loading) {
@@ -115,17 +139,17 @@ export default function AdminDrawsPage() {
                     <span className={`text-xs px-2 py-1 rounded ${
                       draw.status === 'published' 
                         ? 'bg-emerald-500/10 text-emerald-400' 
-                        : draw.status === 'draft'
-                        ? 'bg-amber-500/10 text-amber-400'
-                        : 'bg-slate-700 text-slate-400'
+                        : draw.status === 'simulated'
+                        ? 'bg-blue-500/10 text-blue-400'
+                        : 'bg-amber-500/10 text-amber-400'
                     }`}>
                       {draw.status}
                     </span>
                   </td>
                   <td className="py-4">
                     <div className="flex gap-1">
-                      {draw.numbers?.length > 0 ? (
-                        draw.numbers.map((num: number, i: number) => (
+                      {draw.drawn_numbers?.length > 0 ? (
+                        draw.drawn_numbers.map((num: number, i: number) => (
                           <span key={i} className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center text-sm font-bold">
                             {num}
                           </span>
@@ -148,21 +172,22 @@ export default function AdminDrawsPage() {
                         <Eye size={18} />
                       </button>
                       {draw.status === 'draft' && (
-                        <>
-                          <button
-                            className="p-2 hover:bg-slate-700 rounded text-slate-400 hover:text-white"
-                            title="Edit"
-                          >
-                            <Edit size={18} />
-                          </button>
-                          <button
-                            onClick={() => handlePublishDraw(draw.id)}
-                            className="p-2 hover:bg-slate-700 rounded text-emerald-400 hover:text-emerald-300"
-                            title="Publish"
-                          >
-                            <Send size={18} />
-                          </button>
-                        </>
+                        <button
+                          onClick={() => handleSimulateDraw(draw.id)}
+                          className="p-2 hover:bg-slate-700 rounded text-amber-400 hover:text-amber-300"
+                          title="Simulate"
+                        >
+                          <Edit size={18} />
+                        </button>
+                      )}
+                      {draw.status === 'simulated' && (
+                        <button
+                          onClick={() => handlePublishDraw(draw.id)}
+                          className="p-2 hover:bg-slate-700 rounded text-emerald-400 hover:text-emerald-300"
+                          title="Publish"
+                        >
+                          <Send size={18} />
+                        </button>
                       )}
                     </div>
                   </td>
@@ -177,10 +202,10 @@ export default function AdminDrawsPage() {
       <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="Create New Draw">
         <div className="space-y-4">
           <Input
-            label="Month (e.g., January 2026)"
+            label="Month (e.g., 2026-06)"
             value={formData.month}
             onChange={(e) => setFormData({ ...formData, month: e.target.value })}
-            placeholder="January 2026"
+            placeholder="YYYY-MM"
           />
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">Draw Type</label>
@@ -214,8 +239,8 @@ export default function AdminDrawsPage() {
             <div>
               <div className="text-sm text-slate-400 mb-2">Drawn Numbers</div>
               <div className="flex gap-2">
-                {selectedDraw.numbers?.length > 0 ? (
-                  selectedDraw.numbers.map((num: number, i: number) => (
+                {selectedDraw.drawn_numbers?.length > 0 ? (
+                  selectedDraw.drawn_numbers.map((num: number, i: number) => (
                     <span key={i} className="w-12 h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center text-lg font-bold">
                       {num}
                     </span>

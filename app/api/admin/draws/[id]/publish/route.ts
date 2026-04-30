@@ -1,35 +1,49 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { processDrawResults } from "@/lib/draw/engine";
-import { createClient as createAdminClient } from "@supabase/supabase-js";
 
-async function isAdmin() {
+// ---------------------------------------------------------------------------
+// Helper: verify the calling user is an admin via their session cookie.
+// ---------------------------------------------------------------------------
+async function getAdminUser() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return false;
-  const { data } = await supabase.from("users").select("role").eq("id", user.id).single();
-  return (data as any)?.role === "admin";
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) return null;
+
+  const { data: profile } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  return (profile as any)?.role === "admin" ? user : null;
 }
 
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await isAdmin())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const resolvedParams = await params;
-  const drawId = resolvedParams.id;
-  const supabase = await createClient();
-  
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return NextResponse.json({ error: "Missing Supabase configuration" }, { status: 500 });
+export async function POST(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const user = await getAdminUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Need admin client to bypass RLS for inserting across multiple tables
-  const adminClient = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-  );
+  const { id: drawId } = await params;
+  
+  // Need admin client to bypass RLS for reading draft draws and inserting across multiple tables
+  const adminClient = createAdminClient();
 
-  const { data: draw, error: drawError } = await supabase.from("draws").select("*").eq("id", drawId).single();
-  if (drawError || !draw) return NextResponse.json({ error: "Draw not found" }, { status: 404 });
+  const { data: draw, error: drawError } = await adminClient
+    .from("draws")
+    .select("*")
+    .eq("id", drawId)
+    .single();
+    
+  if (drawError || !draw) {
+    console.error("[publish] Draw fetch error:", drawError);
+    return NextResponse.json({ error: "Draw not found" }, { status: 404 });
+  }
 
   if ((draw as any).status === "published") {
     return NextResponse.json({ error: "Draw is already published" }, { status: 400 });
@@ -42,7 +56,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const summary = await processDrawResults(drawId);
 
     // 1. Insert Prize Pool
-    const { error: poolError } = await adminClient.from("prize_pools").upsert({
+    const { error: poolError } = await (adminClient.from("prize_pools") as any).upsert({
       draw_id: drawId,
       total_pool: summary.pool.total,
       tier_5_pool: summary.pool.tier5,
@@ -50,6 +64,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       tier_3_pool: summary.pool.tier3,
       jackpot_rollover: summary.pool.rollover,
     });
+    
     if (poolError) {
       console.error("Failed to insert prize pool", poolError);
       throw new Error("Failed to insert prize pool");
@@ -58,8 +73,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // 2. Insert Draw Entries (for all valid participants)
     let winnersToInsert: any[] = [];
     if (summary.rawEntries.length > 0) {
-      const { data: entriesData, error: entriesError } = await adminClient
-        .from("draw_entries")
+      const { data: entriesData, error: entriesError } = await (adminClient
+        .from("draw_entries") as any)
         .upsert(
           summary.rawEntries.map((e) => ({
             draw_id: e.draw_id,
@@ -91,7 +106,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }
 
       if (winnersToInsert.length > 0) {
-        const { error: winnerError } = await adminClient.from("winners").insert(winnersToInsert);
+        const { error: winnerError } = await (adminClient.from("winners") as any).upsert(winnersToInsert);
         if (winnerError) {
           console.error("Failed to insert winners", winnerError);
           throw new Error("Failed to insert winners");
@@ -100,7 +115,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     // 4. Update Draw Status and jackpot carryover
-    const { error: updateDrawError } = await adminClient.from("draws").update({ 
+    const { error: updateDrawError } = await (adminClient.from("draws") as any).update({ 
       status: "published",
       jackpot_carried_over: summary.pool.rollover > 0,
       jackpot_amount: summary.pool.rollover
@@ -130,7 +145,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       
       const emailPromises = [];
 
-      for (const user of activeUsers) {
+      for (const user of (activeUsers as any[])) {
         const entry = entryMap.get(user.id);
         if (entry) {
           const isWinner = winnerMap.has(user.id);
@@ -183,6 +198,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     
     return NextResponse.json({ success: true, summary });
   } catch (err) {
+    console.error("[publish] Error:", err);
     return NextResponse.json({ error: err instanceof Error ? err.message : "Publish failed" }, { status: 500 });
   }
 }

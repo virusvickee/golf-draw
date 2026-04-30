@@ -60,47 +60,32 @@ export default function AdminCharitiesPage() {
     });
     setShowModal(true);
   }
-
   async function handleSubmit() {
-    const supabase = createClient();
+    setLoading(true);
+    try {
+      const url = editingCharity 
+        ? `/api/admin/charities/${editingCharity.id}`
+        : `/api/admin/charities`;
+        
+      const method = editingCharity ? "PUT" : "POST";
 
-    if (editingCharity) {
-      const { error } = await (supabase
-        .from("charities") as any)
-        .update({
-          name: formData.name,
-          description: formData.description,
-          image_url: formData.image_url,
-          is_featured: formData.is_featured,
-          is_active: formData.is_active,
-        })
-        .eq("id", editingCharity.id);
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
 
-      if (error) {
-        toast.error("Failed to update charity");
-        return;
-      }
-      toast.success("Charity updated successfully");
-    } else {
-      const { error } = await (supabase
-        .from("charities") as any)
-        .insert({
-          name: formData.name,
-          description: formData.description,
-          image_url: formData.image_url,
-          is_featured: formData.is_featured,
-          is_active: formData.is_active,
-        });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Request failed");
 
-      if (error) {
-        toast.error("Failed to create charity");
-        return;
-      }
-      toast.success("Charity created successfully");
+      toast.success(editingCharity ? "Charity updated!" : "Charity created!");
+      setShowModal(false);
+      fetchCharities();
+    } catch (err: any) {
+      toast.error(err.message || "Something went wrong");
+    } finally {
+      setLoading(false);
     }
-
-    setShowModal(false);
-    fetchCharities();
   }
 
   async function handleDelete(id: string) {
@@ -108,21 +93,20 @@ export default function AdminCharitiesPage() {
       return;
     }
 
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("charities")
-      .delete()
-      .eq("id", id);
+    try {
+      const res = await fetch(`/api/admin/charities/${id}`, {
+        method: "DELETE",
+      });
 
-    if (error) {
-      toast.error("Failed to delete charity");
-      return;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete charity");
+
+      toast.success("Charity deleted successfully");
+      fetchCharities();
+    } catch (err: any) {
+      toast.error(err.message || "Something went wrong");
     }
-
-    toast.success("Charity deleted successfully");
-    fetchCharities();
   }
-
   if (loading) {
     return <div className="text-slate-400">Loading charities...</div>;
   }

@@ -20,17 +20,36 @@ export const metadata = {
 
 export default async function HomePage() {
   const supabase = await createClient();
-  
-  // Fetch stats concurrently
-  const [
-    { count: subscriberCount },
-    { data: charities },
-    { data: currentDraw }
-  ] = await Promise.all([
-    supabase.from("users").select("*", { count: "exact", head: true }).eq("subscription_status", "active"),
-    supabase.from("charities").select("*").eq("is_featured", true).limit(3),
-    supabase.from("draws").select("*, prize_pools(total_pool)").eq("status", "published").order("month", { ascending: false }).limit(1).single()
-  ]);
+
+  const { count: subscriberCount, error: usersError } = await supabase
+    .from("users")
+    .select("*", { count: "exact", head: true })
+    .eq("subscription_status", "active");
+
+  if (usersError) console.error("Users count fetch error:", usersError);
+
+  const { data: charities, error: charitiesError } = await supabase
+    .from("charities")
+    .select("*")
+    .eq("is_featured", true)
+    .eq("is_active", true)
+    .limit(3);
+
+  if (charitiesError) console.error("Charities fetch error:", charitiesError);
+  const featuredCharities = charities || [];
+
+  const { data: currentDraw, error: drawError } = await supabase
+    .from("draws")
+    .select("*, prize_pools(total_pool)")
+    .eq("status", "published")
+    .order("month", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (drawError && drawError.code !== "PGRST116") {
+    console.error("Draws fetch error:", drawError);
+  }
+
 
   const poolAmount = (currentDraw as any)?.prize_pools?.[0]?.total_pool || 0;
   // Estimate total charity raised for display purposes based on active users
@@ -147,7 +166,7 @@ export default async function HomePage() {
           </p>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {charities?.map((charity: any, i: number) => (
+            {featuredCharities.map((charity: any, i: number) => (
               <ScrollReveal key={charity.id} delay={i * 0.1}>
                 <Card hoverEffect className="text-left">
                   <CardContent className="p-6">
